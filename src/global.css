@@ -1,0 +1,8 @@
+::-webkit-scrollbar {
+    width: 12px;
+}
+
+* {
+    scrollbar-width: thin;
+    scrollbar-color: #5578F4 #ffffff;
+}
