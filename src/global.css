@@ -1,8 +1,8 @@
 ::-webkit-scrollbar {
-    width: 12px;
+    width: 7px;
 }
 
 * {
     scrollbar-width: thin;
-    scrollbar-color: #5578F4 #ffffff;
+    scrollbar-color: #D9D9D9 #ffffff;
 }

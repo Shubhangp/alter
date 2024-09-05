@@ -1,18 +1,43 @@
-import React, { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import React, { useEffect, useState } from "react";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import ToggleButton from "./commonFiles/ToggleButton";
 import Field from "./commonFiles/Field";
 import EditFormHeading from "./commonFiles/EditFormHeading";
-import { doc, setDoc } from 'firebase/firestore';
-import { db } from '../firebase/config';
+
 import { useSelector } from "react-redux";
 
 const FormEditor = () => {
   const [edit, setEdit] = useState(false);
   const [fields, setFields] = useState([]);
   const [configuringField, setConfiguringField] = useState(null);
+  const [url, setUrl] = useState('');
+  const [date, setDate] = useState(''); 
+  const [time, setTime] = useState('');
   const title = useSelector((store) => store.title.details);
-  
+  const navigate = useNavigate();
+  const { formId } = useParams();
+  console.log(fields);
+
+  useEffect(() => {
+    if(formId !== "new"){
+      getData();
+    }
+  }, [])
+
+  const getData = async() => {
+    const fetchData = await fetch(`https://alter-backend.vercel.app/api/v1/feedback-form/${formId}`);
+    const jsonData = await fetchData.json();
+    setFields(jsonData.data.formData.formEntries);
+    setUrl(jsonData.data.formData.url);
+  }
+
+  useEffect(() => {
+    if(title === "") {
+      navigate('/admin');
+    }
+  }, [title]);
+
+
   const handleAddField = (fieldType) => {
     const newField = {
       id: fields.length + 1,
@@ -49,13 +74,78 @@ const FormEditor = () => {
 
   const handleEditField = (field) => {
     setConfiguringField(field);
-  };
+  };  
 
   const addFormData = async () => {
+    const formData = {
+      heading: title,
+      formEntries: fields,
+      url: url,
+      published: false,
+      lastDate: date + ' ' + time
+    };
+
     try {
-      const docRef = doc(db, 'feedbackforms', title);
-      await setDoc(docRef, {fields});
-      console.log('Data posted successfully!');
+      if(formId !== "new"){
+        var uri = `https://alter-backend.vercel.app/api/v1/feedback-form/${formId}`;
+        var method = 'PATCH'
+      }else {
+        var uri = 'https://alter-backend.vercel.app/api/v1/feedback-form';
+        var method = 'POST'
+      }
+      const response = await fetch(uri, {
+        method: method,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to post data');
+      }
+
+      const data = await response.json();
+      console.log('Data posted successfully:', data);
+      navigate('/admin');
+    } catch (error) {
+      console.error('Error posting data:', error);
+    }
+  };
+
+  const publishFormData = async () => {
+    const formData = {
+      heading: title,
+      formEntries: fields,
+      url: url,
+      published: true,
+      publishedDate: Date.now(),
+      lastDate: date + ' ' + time
+    };
+
+    try {
+      if(formId !== "new"){
+        var uri = `https://alter-backend.vercel.app/api/v1/feedback-form/${formId}`;
+        var method = 'PATCH'
+      }else {
+        var uri = 'https://alter-backend.vercel.app/api/v1/feedback-form';
+        var method = 'POST'
+      }
+      const response = await fetch(uri, {
+        method: method,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to post data');
+      }
+
+      const data = await response.json();
+      console.log('Data posted successfully:', data);
+      navigate('/admin');
     } catch (error) {
       console.error('Error posting data:', error);
     }
@@ -75,7 +165,7 @@ const FormEditor = () => {
               <button className="bg-[#2196F3] font-roboto font-medium text-[15px] text-white px-[22px] py-3 rounded shadow hover:bg-blue-600" onClick={addFormData}>
                 SAVE
               </button>
-              <button className="bg-[#2E7D32] font-roboto font-medium text-[15px] text-white px-[22px] py-3 rounded shadow hover:bg-green-600">
+              <button className="bg-[#2E7D32] font-roboto font-medium text-[15px] text-white px-[22px] py-3 rounded shadow hover:bg-green-600" onClick={publishFormData}>
                 PUBLISH
               </button>
             </div>
@@ -129,9 +219,9 @@ const FormEditor = () => {
             </div>
             <div className="mt-[77px] space-y-7">
               <div className="font-roboto font-semibold text-xl text-[#000]">Add Logic</div>
-              <ConditionItem label="Show based on URL conditions" placeholder="http://" />
-              <ConditionItem label="Show on a specific date" placeholder="Start date" />
-              <ConditionItem label="Show on a specific time" placeholder="Select Time" />
+              <ConditionItem label="Show based on URL conditions" placeholder="http://" url={url} setUrl={setUrl} />
+              <ConditionItem label="Show on a specific date" placeholder="Start date" setDate={setDate} date={date} setTime={setTime} time={time} />
+              <ConditionItem label="Show on a specific time" placeholder="Select Time" setDate={setDate} date={date} setTime={setTime} time={time} />
             </div>
           </div>
           {configuringField && (<div className="w-[317px] bg-[#FFF] z-10 fixed right-0 bottom-0 top-0 shadow-header p-4 pt-[91px] space-y-4">
@@ -158,12 +248,59 @@ const FormEditor = () => {
 };
 
 // Condition Item Component with a Switch and Input
-const ConditionItem = ({ label, placeholder }) => {
+const ConditionItem = ({ label, placeholder, url, setUrl, setDate, date, setTime, time }) => {
   const [isActive, setIsActive] = useState(true);
+  const [dateError, setDateError] = useState('');
+  const [timeError, setTimeError] = useState('');
 
   const handleToggle = () => {
     setIsActive(!isActive)
   }
+
+  const formatDate = (value) => {
+    let input = value.replace(/\D/g, '');
+    if (input.length > 2) input = input.slice(0, 2) + '/' + input.slice(2);
+    if (input.length > 5) input = input.slice(0, 5) + '/' + input.slice(5, 9);
+    return input;
+  };
+
+  const formatTime = (value) => {
+    let input = value.replace(/[^0-9a-zA-Z]/g, '');
+    if (input.length > 2) input = input.slice(0, 2) + ':' + input.slice(2);
+    return input;
+  };
+
+  // Regex validation for date in MM/DD/YYYY format
+  const isValidDate = (value) => {
+    const dateRegex = /^(0[1-9]|1[0-2])\/(0[1-9]|[12]\d|3[01])\/\d{4}$/;
+    return dateRegex.test(value);
+  };
+
+  // Regex validation for time in hh:mm aa format
+  const isValidTime = (value) => {
+    const timeRegex = /^(0[1-9]|1[0-2]):([0-5]\d)\s?(AM|PM)$/i;
+    return timeRegex.test(value);
+  };
+
+  const handleDateChange = (e) => {
+    const formattedDate = formatDate(e.target.value);
+    setDate(formattedDate);
+    if (isValidDate(formattedDate)) {
+      setDateError('');
+    } else {
+      setDateError('Invalid date format');
+    }
+  };
+
+  const handleTimeChange = (e) => {
+    const formattedTime = formatTime(e.target.value);
+    setTime(formattedTime);
+    if (isValidTime(formattedTime)) {
+      setTimeError('');
+    } else {
+      setTimeError('Invalid time format');
+    }
+  };
 
   return (
     <>
@@ -177,6 +314,8 @@ const ConditionItem = ({ label, placeholder }) => {
             type="text"
             className="w-full border-b-2 border-[#000] py-1 text-base text-[#A89D9D] font-roboto font-normal outline-none"
             placeholder={placeholder}
+            onChange={(e) => setUrl(e.target.value)}
+            value={url}
           />
         )}
       </div>)
@@ -186,14 +325,31 @@ const ConditionItem = ({ label, placeholder }) => {
           <ToggleButton checked={isActive} onChange={handleToggle} />
         </div>
         {isActive && (
-          <div className="relative h-10 w-full min-w-[200px]">
-            <input placeholder={placeholder === "Start date"? "MM/DD/YYYY" : "hh:mm aa"} 
-              className="peer h-full w-full rounded-[7px] border border-blue-gray-200  bg-transparent px-3 py-2.5 font-sans text-sm font-normal text-blue-gray-700 outline outline-0 transition-all placeholder-shown:border placeholder-shown:border-blue-gray-200 placeholder-shown:border-t-blue-gray-200 focus:border-2 focus:border-gray-200 focus:border-t-transparent focus:outline-0 disabled:border-0 disabled:bg-blue-gray-50 placeholder:opacity-0 focus:placeholder:opacity-100" />
-            <label
-              className="before:content[' '] after:content[' '] pointer-events-none absolute left-0 -top-1.5 flex h-full w-full select-none !overflow-visible truncate leading-tight transition-all font-normal font-roboto text-xs text-[#00000099] before:pointer-events-none before:mt-[6.5px] before:mr-1 before:box-border before:block before:h-1.5 before:w-2.5 before:rounded-tl-md before:border-t before:border-l before:border-blue-gray-200 before:transition-all after:pointer-events-none after:mt-[6.5px] after:ml-1 after:box-border after:block after:h-1.5 after:w-2.5 after:flex-grow after:rounded-tr-md after:border-t after:border-r after:border-blue-gray-200 after:transition-all peer-placeholder-shown:text-sm peer-placeholder-shown:leading-[3.75] peer-placeholder-shown:text-blue-gray-500 peer-placeholder-shown:before:border-transparent peer-placeholder-shown:after:border-transparent peer-focus:text-xs peer-focus:leading-tight peer-focus:text-[#00000099] peer-focus:before:border-t-2 peer-focus:before:border-l-2 peer-focus:before:!border-gray-200 peer-focus:after:border-t-2 peer-focus:after:border-r-2 peer-focus:after:!border-gray-200 peer-disabled:text-transparent peer-disabled:before:border-transparent peer-disabled:after:border-transparent peer-disabled:peer-placeholder-shown:text-[#00000099]">
-              {placeholder}
-            </label>
-          </div>
+          <>
+            {placeholder === "Start date" ? (
+              <div>
+                <input
+                  type="text"
+                  placeholder="MM/DD/YYYY"
+                  className="w-full border-b-2 border-[#000] py-1 text-base text-[#A89D9D] font-roboto font-normal outline-none"
+                  value={date}
+                  onChange={handleDateChange}
+                />
+                {dateError && <span className="text-red-500 text-sm">{dateError}</span>}
+              </div>
+            ) : (
+              <div>
+                <input
+                  type="text"
+                  placeholder="hh:mm aa"
+                  className="w-full border-b-2 border-[#000] py-1 text-base text-[#A89D9D] font-roboto font-normal outline-none"
+                  value={time}
+                  onChange={handleTimeChange}
+                />
+                {timeError && <span className="text-red-500 text-sm">{timeError}</span>}
+              </div>
+            )}
+          </>
         )}
       </div>)}
     </>

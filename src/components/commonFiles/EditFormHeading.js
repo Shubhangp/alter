@@ -3,7 +3,7 @@ import { useDispatch } from "react-redux";
 import { titleData } from "../../utilis/titleSlice";
 import { useNavigate } from "react-router-dom";
 
-const EditFormHeading = ({setEdit, title, heading, handleNavigation }) => {
+const EditFormHeading = ({setEdit, title, heading }) => {
     const [newTitle, setNewTitle] = useState(title);
     const dispatch = useDispatch();
     const navigate = useNavigate();
